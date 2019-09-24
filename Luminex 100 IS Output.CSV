@@ -1,0 +1,47 @@
+"Program","Luminex 100 IS",409
+"Build","2.3 Beta"
+"Date","7/28/2004","2:12:01 PM"
+
+"SN","LX10001298011BE"
+"Session","Bead 22 Quant Batch"
+"Operator","Joe User"
+
+
+
+
+"Samples","8","Min Events","0"
+
+"Results"
+
+"DataType:","Median"
+"Location","Sample","Test 22","Total Events","Notes"
+"1","Std s","57","75",""
+"2","Std m","525","75",""
+"3","Std l","4341","75",""
+"4","Std xl","14316","75",""
+"5","Std xxl","25694","75",""
+"6","Low Control","58","75",""
+"7","Patient 1","532","75",""
+"8","Patient 2","14567","75",""
+
+"DataType:","Result"
+"Location","Sample","Test 22","Total Events","Notes"
+"1","Std s","2.99 pg/mL","75",""
+"2","Std m","15.79 pg/mL","75",""
+"3","Std l","126.71 pg/mL","75",""
+"4","Std xl","616.93 pg/mL","75",""
+"5","Std xxl","3194.84 pg/mL","75",""
+"6","Low Control","3.02 pg/mL","75",""
+"7","Patient 1","15.98 pg/mL","75",""
+"8","Patient 2","636.38 pg/mL","75",""
+
+"DataType:","Count"
+"Location","Sample","Test 22","Total Events","Notes"
+"1","Std s","75","75",""
+"2","Std m","75","75",""
+"3","Std l","75","75",""
+"4","Std xl","75","75",""
+"5","Std xxl","75","75",""
+"6","Low Control","75","75",""
+"7","Patient 1","75","75",""
+"8","Patient 2","75","75",""
