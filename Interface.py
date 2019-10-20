@@ -1,9 +1,12 @@
 import requests
 import json
-import re
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backend_bases import key_press_handler
+from matplotlib.figure import Figure
+import numpy as np
 import gzip
 from tkinter import *
-# from tkinter import filedialog
+from tkinter import messagebox
 import os
 
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
@@ -29,13 +32,13 @@ class Interface:
         self.notifications()
 
     def get_GDC_organs(self):
-        with open(r"GDC Tissue Types.tsv", "r") as organ_file:
+        with open(r"Info-Files\GDC Tissue Types.tsv", "r") as organ_file:
             for i in organ_file.readlines():
                 organ_list = i.rstrip().split("\t")
         return organ_list
 
     def get_CCLE_organs(self):
-        with open(r"CCLE Tissue Types.csv", "r") as organ_file:
+        with open(r"Info-Files\CCLE Tissue Types.csv", "r") as organ_file:
             organ_list = []
             for i in organ_file.readlines()[1:]:
                 organ_list.append(i.split(",")[0])
@@ -48,10 +51,6 @@ class Interface:
         w.pack()
         button_frame = Frame(frame_1)
         button_frame.pack()
-        self.quit_button = Button(
-            button_frame, text="QUIT", fg="red", command=button_frame.quit
-        )
-        self.quit_button.pack(side=LEFT)
         self.analyze_button = Button(button_frame, text="Analyze files", command=self.analyze)
         self.analyze_button.pack(side=LEFT)
 
@@ -146,9 +145,10 @@ class Interface:
         if self.selected_gdc_organ and self.selected_ccle_organ:
             # self.query_button.config(state="disabled")
             self.analyze_button.config(state="disabled")
-            root_2 = Tk()
-            app_2 = Analyze(root_2, self.query_obj)
-            root_2.mainloop()
+            self.root_2 = Tk()
+            self.root_2.protocol("WM_DELETE_WINDOW", self.close_analyze)
+            app_2 = Analyze(self.root_2, self.query_obj)
+            self.root_2.mainloop()
         elif not self.selected_gdc_organ:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "No GDC tissue is selected.\n")
@@ -158,33 +158,63 @@ class Interface:
             self.text_box.insert(INSERT, "No CCLE tissue is selected.\n")
             self.text_box.config(state="disabled")
 
+    def close_analyze(self):
+        if messagebox.askokcancel("Quit", "Do you want to quit? All queried info will be lost."):
+            self.root_2.destroy()
+            self.analyze_button.config(state="normal")
+
 
 class Analyze:
 
     def __init__(self, master, query_obj):
-        self.master = master
+
         self.query_object = query_obj
         self.files_left = len(query_obj.file_uuid_list)
+        self.selected_file = ""
+        self.top_frame = Frame(master, bd=10)
+        self.top_frame.pack()
+        self.bottom_frame = Frame(master, bd=10)
+        self.bottom_frame.pack(side=BOTTOM)
         self.title_frame()
         self.file_frame()
+        self.graph_frame()
 
     def title_frame(self):
-        self.frame_1 = Frame(self.master)
-        self.frame_1.pack()
-        w = Label(self.frame_1, text="Welcome to our application!")
+        title_frame = Frame(self.top_frame)
+        title_frame.pack()
+        w = Label(title_frame, text="Welcome to our application!")
         w.pack()
 
     def file_frame(self):
-        z = Label(self.frame_1, text=str(self.files_left) + " patient files left!", pady=5)
-        z.pack()
-        frame_2 = Frame(self.master)
-        frame_2.pack()
-        y = Label(frame_2, text="Patient data currently available:")
-        y.pack()
+        file_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
+        file_frame.pack(side=LEFT, fill=BOTH, expand=1)
+        files_left = Label(file_frame, text=str(self.files_left) + " patient files left!", pady=5)
+        files_left.pack()
+        files_here = Label(file_frame, text="Patient data currently available:")
+        files_here.pack()
+        scrollbar = Scrollbar(file_frame, orient=VERTICAL)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        file_listbox = Listbox(file_frame, width=40, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
+        file_listbox.pack()
+        scrollbar.config(command=file_listbox.yview)
         for patient in self.query_object.data_list:
-            patient_id = patient.keys()
-            y = Label(self.frame_1, text=str(patient_id), pady=5)
-            y.pack()
+            patient_id = "".join([i for i in patient.keys()])
+            file_listbox.insert(END, patient_id)
+            # y = Label(file_frame, text=str(patient_id), pady=5)
+            # y.pack()
+
+    def graph_frame(self):
+        graph_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
+        graph_frame.pack(side=LEFT)
+        graph_title = Label(graph_frame, text="Gene Expression Graph", pady=5)
+        graph_title.pack()
+        fig = Figure(figsize=(5, 4), dpi=100)
+        t = np.arange(0, 3, .01)
+        fig.add_subplot(111).plot(t, 2 * np.sin(2 * np.pi * t))
+
+        canvas = FigureCanvasTkAgg(fig, master=graph_frame)  # A tk.DrawingArea.
+        canvas.draw()
+        canvas.get_tk_widget().pack()
 
 
 class GDCQuery:
@@ -236,7 +266,7 @@ class GDCQuery:
             "filters": json.dumps(filters),
             "fields": "file_id",
             "format": "JSON",
-            "size": "1000"
+            "size": "20"
             }
         return params
 
@@ -249,30 +279,36 @@ class GDCQuery:
         return response, self.file_uuid_list
 
     def query_data(self, num_patients):
-        sub_file_ids = self.file_uuid_list[:num_patients]
-        for file_index, file_id in enumerate(sub_file_ids):
-            self.file_uuid_list.remove(file_id)
-            params = {"ids": file_id}
-            response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
-            self.parse_data(response)
-        return "Data from " + str(num_patients) + " files has been parsed!\n"
+        if len(self.file_uuid_list) == 0:
+            return "No data available!\n"
+        else:
+            sub_file_ids = self.file_uuid_list[:num_patients]
+            for file_index, file_id in enumerate(sub_file_ids):
+                self.file_uuid_list.remove(file_id)
+                params = {"ids": file_id}
+                response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
+                self.parse_data(response)
+            return "Data from " + str(num_patients) + " files has been parsed!\n"
 
     def parse_data(self, response):
         response_head_cd = response.headers["Content-Disposition"]
         file_name = re.findall("filename=(.+)", response_head_cd)[0]
-        data_dict = dict()
-        data_dict[file_name] = {}
         file_path = os.path.join(file_dir, file_name)
         with open(file_path, "wb") as output_file:
             output_file.write(response.content)
+        self.read_data(file_path, file_name)
 
-        with gzip.open(file_path, "rb") as gene_exp:
+    def read_data(self, filepath, filename):
+        data_dict = dict()
+        data_dict[filename] = {}
+        with gzip.open(filepath, "rb") as gene_exp:
             for i in gene_exp.readlines():
                 i_split = i.decode().split("\t")
                 gene_id = i_split[0]
                 gene_count = i_split[1]
-                data_dict[file_name][gene_id] = gene_count
+                data_dict[filename][gene_id] = gene_count
         self.data_list.append(data_dict)
+        os.remove(filepath)
 
 
 root = Tk()
