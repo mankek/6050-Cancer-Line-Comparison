@@ -7,9 +7,9 @@ class GeneFrame(object):
     def __init__(self, df):
         self.df = df
 
-    def clearVersions(self):
+    def ensgToIndex(self):
         self.df['gene'] = [re.sub('\..*','',x) for x in self.df['gene']]
-
+        self.df = self.df.set_index('gene')
 
 class GeneList(GeneFrame):
     def __init__(self, Gene_List_CSV):
@@ -17,7 +17,7 @@ class GeneList(GeneFrame):
         if isinstance(temp, pd.DataFrame) and \
             all([x in temp.columns for x in ['gene','length']]):
             super().__init__(temp)
-            self.clearVersions()
+            self.ensgToIndex()
         else:
             raise TypeError('File did not return valid DataFrame.')
 
@@ -27,10 +27,10 @@ class CCLE(GeneFrame):
         self.df = pd.read_csv(file, sep='\t')
         self.tissue = tissue.replace(' ', '_')
         self.df = self.__geneCheck(self.df)
-        self.clearVersions()
+        self.ensgToIndex()
 
     def __geneCheck(self, df):
-        temp = [bool(re.match('gene*',x)) for x in df.columns]
+        temp = [bool(re.match('gene',x)) for x in df.columns]
         if sum(temp) < 1:
             raise AttributeError("No 'gene' index found.")
         elif sum(temp) > 1:
@@ -50,6 +50,7 @@ class Sample(GeneFrame):
             self.__name = name
             dataFrame.columns = ['gene','counts']
             super().__init__(dataFrame)
+            self.ensgToIndex()
             if isinstance(geneList, GeneList):
                 self.applyGeneList(geneList)
             elif geneList != None:
@@ -58,9 +59,7 @@ class Sample(GeneFrame):
             raise TypeError('Samples consist of a string and a pandas DataFrame.')
 
     def applyGeneList(self, geneList):
-        self.clearVersions()
-        self.df = self.df[self.df['gene'].isin(geneList.df['gene'])]
-        self.df = self.df.merge(geneList.df[geneList.df['gene'].isin(self.df['gene'])][['gene','length']])
+        self.df = pd.merge(self.df, geneList.df['length'], left_index=True, right_index=True)
         self.__calcTPM()
 
     def __calcTPM(self):
@@ -71,15 +70,15 @@ class Sample(GeneFrame):
         self.cor = [['CCLE Sample', 'Levene','Pearson']]
         if not isinstance(CCLE_Data, CCLE):
             raise TypeError('CCLE parameter must be CCLE object.')
-        c = CCLE_Data.df[CCLE_Data.df['gene'].isin(self.df['gene'])]
-        for i in c.columns[1:]:
+        c = CCLE_Data.df.loc[self.df.index]
+        for i in c.columns:
             scaleFac = sum(c[i])/1000000
             c.loc[:][i] = self.__calc(c[i])
             lValue = levene(self.df['tpm'], c[i])[1]
             score = self.df['tpm'].corr(c[i])
             self.cor.append([i,lValue,score])
         self.cor = pd.DataFrame(self.cor)
-        self.df = self.df.merge(c)
+        self.df = pd.merge(self.df, c, left_index=True, right_index=True)
     
     def __calc(self, x):
         scaleFac = sum(x)/1000000
