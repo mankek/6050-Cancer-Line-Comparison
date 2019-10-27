@@ -1,6 +1,6 @@
 import requests
 import json
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 from matplotlib.backend_bases import key_press_handler
 from matplotlib.figure import Figure
 import numpy as np
@@ -8,6 +8,7 @@ import gzip
 from tkinter import *
 from tkinter import messagebox
 import os
+import pandas
 
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
 
@@ -142,7 +143,7 @@ class Interface:
             self.text_box.config(state="disabled")
 
     def analyze(self):
-        if self.selected_gdc_organ and self.selected_ccle_organ:
+        if self.selected_gdc_organ and self.selected_ccle_organ and (len(self.query_obj.file_uuid_list) != 0):
             # self.query_button.config(state="disabled")
             self.analyze_button.config(state="disabled")
             self.root_2 = Tk()
@@ -156,6 +157,10 @@ class Interface:
         elif not self.selected_ccle_organ:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "No CCLE tissue is selected.\n")
+            self.text_box.config(state="disabled")
+        elif len(self.query_obj.file_uuid_list) == 0:
+            self.text_box.config(state="normal")
+            self.text_box.insert(INSERT, "No GDC data available.\n")
             self.text_box.config(state="disabled")
 
     def close_analyze(self):
@@ -188,20 +193,38 @@ class Analyze:
     def file_frame(self):
         file_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
         file_frame.pack(side=LEFT, fill=BOTH, expand=1)
-        files_left = Label(file_frame, text=str(self.files_left) + " patient files left!", pady=5)
+
+        patient_frame = Frame(file_frame)
+        patient_frame.pack()
+        files_left = Label(patient_frame, text=str(self.files_left) + " patient files left!", pady=5)
         files_left.pack()
-        files_here = Label(file_frame, text="Patient data currently available:")
+        files_here = Label(patient_frame, text="Patient data currently available:")
         files_here.pack()
-        scrollbar = Scrollbar(file_frame, orient=VERTICAL)
+        scrollbar = Scrollbar(patient_frame, orient=VERTICAL)
         scrollbar.pack(side=RIGHT, fill=Y)
-        file_listbox = Listbox(file_frame, width=40, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
-        file_listbox.pack()
-        scrollbar.config(command=file_listbox.yview)
+        self.file_listbox = Listbox(patient_frame, width=50, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
+        self.file_listbox.pack()
+        scrollbar.config(command=self.file_listbox.yview)
         for patient in self.query_object.data_list:
             patient_id = "".join([i for i in patient.keys()])
-            file_listbox.insert(END, patient_id)
-            # y = Label(file_frame, text=str(patient_id), pady=5)
-            # y.pack()
+            self.file_listbox.insert(END, patient_id)
+
+        line_frame = Frame(file_frame, pady=10)
+        line_frame.pack()
+        line_data = Label(line_frame, text="Cancer Cell Line and Correlation Statistics")
+        line_data.pack()
+        scrollbar = Scrollbar(line_frame, orient=VERTICAL)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        self.line_listbox = Listbox(line_frame, width=50, height=5)
+        self.line_listbox.pack()
+        scrollbar.config(command=self.line_listbox.yview)
+        # for number in range(0, 5):
+        #     line_listbox.insert(END, number)
+
+    def choose_patient(self):
+        if self.file_listbox.curselection():
+            clicked_ind = self.file_listbox.curselection()[0]
+            self.selected_file = str(self.file_listbox[clicked_ind])
 
     def graph_frame(self):
         graph_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
@@ -215,6 +238,9 @@ class Analyze:
         canvas = FigureCanvasTkAgg(fig, master=graph_frame)  # A tk.DrawingArea.
         canvas.draw()
         canvas.get_tk_widget().pack()
+        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
+        toolbar.update()
+        canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
 
 
 class GDCQuery:
@@ -275,23 +301,29 @@ class GDCQuery:
         # This step populates the download list with the file_ids from the previous query
         for file_entry in json.loads(response.content.decode("utf-8"))["data"]["hits"]:
             self.file_uuid_list.append(file_entry["file_id"])
-
         return response, self.file_uuid_list
 
     def query_data(self, num_patients):
         if len(self.file_uuid_list) == 0:
             return "No data available!\n"
         else:
+            if num_patients > len(self.file_uuid_list):
+                num_patients = len(self.file_uuid_list)
             sub_file_ids = self.file_uuid_list[:num_patients]
             for file_index, file_id in enumerate(sub_file_ids):
                 self.file_uuid_list.remove(file_id)
                 params = {"ids": file_id}
                 response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
-                self.parse_data(response)
+                if response.status_code != 200:
+                    num_patients = num_patients - 1
+                    continue
+                else:
+                    self.parse_data(response)
             return "Data from " + str(num_patients) + " files has been parsed!\n"
 
     def parse_data(self, response):
         response_head_cd = response.headers["Content-Disposition"]
+        print(type(response.content))
         file_name = re.findall("filename=(.+)", response_head_cd)[0]
         file_path = os.path.join(file_dir, file_name)
         with open(file_path, "wb") as output_file:
@@ -300,13 +332,20 @@ class GDCQuery:
 
     def read_data(self, filepath, filename):
         data_dict = dict()
-        data_dict[filename] = {}
+        data_dict[filename] = {"gene_id": [], "gene_count": []}
         with gzip.open(filepath, "rb") as gene_exp:
             for i in gene_exp.readlines():
                 i_split = i.decode().split("\t")
-                gene_id = i_split[0]
-                gene_count = i_split[1]
-                data_dict[filename][gene_id] = gene_count
+                gene_id = i_split[0].split(".")[0]  # ensemble gene ID without version number
+                if gene_id.startswith("E"):
+                    gene_count = i_split[1].rstrip()
+                    data_dict[filename]["gene_id"].append(gene_id)
+                    data_dict[filename]["gene_count"].append(gene_count)
+                    # data_dict[filename][gene_id] = gene_count
+                else:
+                    continue
+        file_data = pandas.DataFrame(data_dict[filename])
+        data_dict[filename] = file_data
         self.data_list.append(data_dict)
         os.remove(filepath)
 
