@@ -1,7 +1,7 @@
 import requests
 import json
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from matplotlib.backend_bases import key_press_handler
+from CompareTPM import GeneFrame, GeneList, CCLE, Sample
 from matplotlib.figure import Figure
 import numpy as np
 import gzip
@@ -137,6 +137,7 @@ class Interface:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, self.selected_ccle_organ + " was selected!\n")
             self.text_box.config(state="disabled")
+            self.ccle_object = CCLE("Info-Files\CCLE_RNAseq_rsem_genes_tpm_20180929.txt", self.selected_ccle_organ)
         else:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "No CCLE tissue is selected.\n")
@@ -148,7 +149,7 @@ class Interface:
             self.analyze_button.config(state="disabled")
             self.root_2 = Tk()
             self.root_2.protocol("WM_DELETE_WINDOW", self.close_analyze)
-            app_2 = Analyze(self.root_2, self.query_obj)
+            app_2 = Analyze(self.root_2, self.query_obj, self.ccle_object)
             self.root_2.mainloop()
         elif not self.selected_gdc_organ:
             self.text_box.config(state="normal")
@@ -171,18 +172,21 @@ class Interface:
 
 class Analyze:
 
-    def __init__(self, master, query_obj):
+    def __init__(self, master, query_obj, ccle_object):
 
         self.query_object = query_obj
+        self.ccle_object = ccle_object
         self.files_left = len(query_obj.file_uuid_list)
         self.selected_file = ""
+        self.selected_cor = ""
         self.top_frame = Frame(master, bd=10)
         self.top_frame.pack()
         self.bottom_frame = Frame(master, bd=10)
         self.bottom_frame.pack(side=BOTTOM)
         self.title_frame()
         self.file_frame()
-        self.graph_frame()
+        self.graphs_frame()
+        self.analysis()
 
     def title_frame(self):
         title_frame = Frame(self.top_frame)
@@ -205,9 +209,16 @@ class Analyze:
         self.file_listbox = Listbox(patient_frame, width=50, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
         self.file_listbox.pack()
         scrollbar.config(command=self.file_listbox.yview)
-        for patient in self.query_object.data_list:
-            patient_id = "".join([i for i in patient.keys()])
-            self.file_listbox.insert(END, patient_id)
+        for patient in self.query_object.data_dict.keys():
+            # patient_id = "".join([i for i in patient.keys()])
+            self.file_listbox.insert(END, patient)
+
+        button_frame = Frame(file_frame, pady=10)
+        button_frame.pack()
+        add_button = Button(button_frame, text="Add 5 more patients")
+        add_button.pack(side=LEFT)
+        analyze_button = Button(button_frame, text="Generate Graphs", command=self.analysis)
+        analyze_button.pack(side=LEFT)
 
         line_frame = Frame(file_frame, pady=10)
         line_frame.pack()
@@ -224,23 +235,56 @@ class Analyze:
     def choose_patient(self):
         if self.file_listbox.curselection():
             clicked_ind = self.file_listbox.curselection()[0]
-            self.selected_file = str(self.file_listbox[clicked_ind])
+            self.selected_file = self.file_listbox.get(clicked_ind)
+        else:
+            self.file_listbox.activate(1)
+            self.selected_file = self.file_listbox.get(1)
 
-    def graph_frame(self):
-        graph_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
-        graph_frame.pack(side=LEFT)
-        graph_title = Label(graph_frame, text="Gene Expression Graph", pady=5)
+    def choose_cor(self):
+        if self.line_listbox.curselection():
+            clicked_ind = self.line_listbox.curselection()[0]
+            self.selected_cor = self.line_listbox.get(clicked_ind)
+        else:
+            self.line_listbox.activate(2)
+            self.selected_cor = self.line_listbox.get(2)
+
+    def analysis(self):
+        self.choose_patient()
+        gene_list = GeneList("Info-Files/Gene_List.csv")
+        sample_df = self.query_object.data_dict[self.selected_file]
+        sample_obj = Sample(self.selected_file, sample_df, gene_list)
+        sample_obj.compareCCLE(self.ccle_object)
+        self.correlation(sample_obj.cor)
+        self.choose_cor()
+        self.create_graph(sample_obj.df, self.selected_cor)
+
+    def graphs_frame(self, fig=None):
+        self.graph_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
+        self.graph_frame.pack(side=LEFT)
+        graph_title = Label(self.graph_frame, text="Gene Expression Graph", pady=5)
         graph_title.pack()
-        fig = Figure(figsize=(5, 4), dpi=100)
-        t = np.arange(0, 3, .01)
-        fig.add_subplot(111).plot(t, 2 * np.sin(2 * np.pi * t))
+        # t = np.arange(0, 3, .01)
+        # fig.add_subplot(111).plot(t, 2 * np.sin(2 * np.pi * t))
+        if fig:
+            canvas = FigureCanvasTkAgg(fig, master=self.graph_frame)  # A tk.DrawingArea.
+            canvas.draw()
+            canvas.get_tk_widget().pack()
+            toolbar = NavigationToolbar2Tk(canvas, self.graph_frame)
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
 
-        canvas = FigureCanvasTkAgg(fig, master=graph_frame)  # A tk.DrawingArea.
-        canvas.draw()
-        canvas.get_tk_widget().pack()
-        toolbar = NavigationToolbar2Tk(canvas, graph_frame)
-        toolbar.update()
-        canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
+    def create_graph(self, df_in, sel_cor):
+        self.graph_frame.destroy()
+        fig = Figure(figsize=(5, 4), dpi=100)
+        tissue = sel_cor.split(" ")[0]
+        fig.add_subplot(111).scatter(df_in[tissue], df_in["tpm"])
+        self.graphs_frame(fig)
+
+    def correlation(self, df_in):
+        for i, r in df_in.iterrows():
+            entry = str(r[0]) + " " + str(r[1]) + " " + str(r[2])
+            # print(r)
+            self.line_listbox.insert(END, entry)
 
 
 class GDCQuery:
@@ -250,7 +294,7 @@ class GDCQuery:
         self.organ = organ
         self.data_endpt = "https://api.gdc.cancer.gov/data"
         self.file_uuid_list = []
-        self.data_list = list()
+        self.data_dict = dict()
 
     def param_construct(self):
         filters = {
@@ -323,7 +367,6 @@ class GDCQuery:
 
     def parse_data(self, response):
         response_head_cd = response.headers["Content-Disposition"]
-        print(type(response.content))
         file_name = re.findall("filename=(.+)", response_head_cd)[0]
         file_path = os.path.join(file_dir, file_name)
         with open(file_path, "wb") as output_file:
@@ -331,22 +374,21 @@ class GDCQuery:
         self.read_data(file_path, file_name)
 
     def read_data(self, filepath, filename):
-        data_dict = dict()
-        data_dict[filename] = {"gene_id": [], "gene_count": []}
+        self.data_dict[filename] = {"gene_id": [], "gene_count": []}
         with gzip.open(filepath, "rb") as gene_exp:
             for i in gene_exp.readlines():
                 i_split = i.decode().split("\t")
                 gene_id = i_split[0].split(".")[0]  # ensemble gene ID without version number
                 if gene_id.startswith("E"):
                     gene_count = i_split[1].rstrip()
-                    data_dict[filename]["gene_id"].append(gene_id)
-                    data_dict[filename]["gene_count"].append(gene_count)
+                    self.data_dict[filename]["gene_id"].append(gene_id)
+                    self.data_dict[filename]["gene_count"].append(int(gene_count))
                     # data_dict[filename][gene_id] = gene_count
                 else:
                     continue
-        file_data = pandas.DataFrame(data_dict[filename])
-        data_dict[filename] = file_data
-        self.data_list.append(data_dict)
+        file_data = pandas.DataFrame(self.data_dict[filename], index=self.data_dict[filename]["gene_id"])
+        self.data_dict[filename] = file_data
+        # self.data_list.append(data_dict)
         os.remove(filepath)
 
 

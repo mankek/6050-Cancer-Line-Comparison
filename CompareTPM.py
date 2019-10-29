@@ -3,6 +3,7 @@ import re
 import math
 from scipy.stats import levene
 
+
 class GeneFrame(object):
     def __init__(self, df):
         self.df = df
@@ -10,6 +11,7 @@ class GeneFrame(object):
     def ensgToIndex(self):
         self.df['gene'] = [re.sub('\..*','',x) for x in self.df['gene']]
         self.df = self.df.set_index('gene')
+
 
 class GeneList(GeneFrame):
     def __init__(self, Gene_List_CSV):
