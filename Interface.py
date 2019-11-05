@@ -1,50 +1,84 @@
 import requests
 import json
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-from CompareTPM import GeneFrame, GeneList, CCLE, Sample
-from matplotlib.figure import Figure
-import numpy as np
+import matplotlib.pyplot as plt
+from CompareTPM import GeneList, CCLE, Sample
+from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
-from tkinter import messagebox
 import os
 import pandas
 
+# Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
 
 
 class Interface:
+    """Creates the initial interface for tissue selection and analysis initiation.
+
+    The interface has two menus. The left menu allows for selection of tissue for the query to the GDC database.
+    The right menu allows for selection of tissue for data extraction from the local CCLE data. Tissue is selected
+    via clicking within the textbox. Attempting to initialize analysis without both a GDC and CCLE tissue selected
+    will fail. The Notification text box contains feedback on selection and querying, as well as any potential error
+    messages.
+
+    Parameters
+    ----------
+    master : :class:`tkinter.Tk`
+            Tkinter root widget
+    """
 
     def __init__(self, master):
+        # defines behavior for quitting main interface window
+        master.protocol("WM_DELETE_WINDOW", self.close_app)
+        self.master = master
+        # defines frames of interface
         self.top_frame = Frame(master)
         self.top_frame.pack()
         self.middle_frame = Frame(master, bd=10)
         self.middle_frame.pack()
         self.bottom_frame = Frame(master, bd=10)
         self.bottom_frame.pack()
-        # self.organ_list = ["Kidney", "Lip", "Ovary", "Skin", "Bladder", "Blood"]
+        # extracts list of GDC and CCLE tissues for selection menus
         self.gdc_organ_list = self.get_GDC_organs()
         self.ccle_organ_list = self.get_CCLE_organs()
+        # holds user-selected tissue values
         self.selected_gdc_organ = None
         self.selected_ccle_organ = None
+        # initializes frames that hold content in interface
         self.title_frame()
         self.GDC_frame()
         self.CCLE_frame()
         self.notifications()
 
-    def get_GDC_organs(self):
+    # If analysis window is open when closing main interface window, analysis window is also closed
+    def close_app(self):
+        try:
+            self.root_2.destroy()
+            self.master.destroy()
+        except TclError:
+            self.master.destroy()
+
+    # Extracts all GDC tissue types from file in Info-Files directory
+    # File should be tab-separated file
+    @staticmethod
+    def get_GDC_organs():
         with open(r"Info-Files\GDC Tissue Types.tsv", "r") as organ_file:
             for i in organ_file.readlines():
                 organ_list = i.rstrip().split("\t")
         return organ_list
 
-    def get_CCLE_organs(self):
+    # Extracts all CCLE tissue types from file in Info-Files directory
+    # File should be comma-separated file
+    @staticmethod
+    def get_CCLE_organs():
         with open(r"Info-Files\CCLE Tissue Types.csv", "r") as organ_file:
             organ_list = []
             for i in organ_file.readlines()[1:]:
                 organ_list.append(i.split(",")[0])
             return organ_list
 
+    # defines title frame
+    # fills title frame with app title and analyze button
     def title_frame(self):
         frame_1 = Frame(self.top_frame)
         frame_1.pack()
@@ -55,6 +89,8 @@ class Interface:
         self.analyze_button = Button(button_frame, text="Analyze files", command=self.analyze)
         self.analyze_button.pack(side=LEFT)
 
+    # defines GDC menu frame
+    # fills GDC menu frame with button for performing query and menu of selectable tissues
     def GDC_frame(self):
         gdc_frame = Frame(self.middle_frame)
         gdc_frame.pack(side=LEFT)
@@ -76,6 +112,8 @@ class Interface:
         for organ in self.gdc_organ_list:
             self.gdc_listbox.insert(END, organ)
 
+    # defines CCLE menu frame
+    # fills CCLE menu frame with button for extracting CCLE data and menu of selectable tissues
     def CCLE_frame(self):
         ccle_frame = Frame(self.middle_frame)
         ccle_frame.pack(side=LEFT)
@@ -97,6 +135,8 @@ class Interface:
         for organ in self.ccle_organ_list:
             self.ccle_listbox.insert(END, organ)
 
+    # defines notification frame
+    # fills notification frame with text box
     def notifications(self):
         note_frame = Frame(self.bottom_frame, bd=5, relief=SUNKEN)
         note_frame.pack(side=BOTTOM)
@@ -108,6 +148,7 @@ class Interface:
         self.text_box.pack()
         scrollbar.config(command=self.text_box.yview)
 
+    # if a GDC tissue has been selected
     def query(self):
         if self.gdc_listbox.curselection():
             clicked_ind = self.gdc_listbox.curselection()[0]
@@ -165,9 +206,9 @@ class Interface:
             self.text_box.config(state="disabled")
 
     def close_analyze(self):
-        if messagebox.askokcancel("Quit", "Do you want to quit? All queried info will be lost."):
-            self.root_2.destroy()
-            self.analyze_button.config(state="normal")
+        self.root_2.destroy()
+        plt.close()
+        self.analyze_button.config(state="normal")
 
 
 class Analyze:
@@ -185,7 +226,7 @@ class Analyze:
         self.bottom_frame.pack(side=BOTTOM)
         self.title_frame()
         self.file_frame()
-        self.graphs_frame()
+        # self.graphs_frame()
         self.analysis()
 
     def title_frame(self):
@@ -258,27 +299,22 @@ class Analyze:
         self.choose_cor()
         self.create_graph(sample_obj.df, self.selected_cor)
 
-    def graphs_frame(self, fig=None):
-        self.graph_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
-        self.graph_frame.pack(side=LEFT)
-        graph_title = Label(self.graph_frame, text="Gene Expression Graph", pady=5)
-        graph_title.pack()
-        # t = np.arange(0, 3, .01)
-        # fig.add_subplot(111).plot(t, 2 * np.sin(2 * np.pi * t))
-        if fig:
-            canvas = FigureCanvasTkAgg(fig, master=self.graph_frame)  # A tk.DrawingArea.
-            canvas.draw()
-            canvas.get_tk_widget().pack()
-            toolbar = NavigationToolbar2Tk(canvas, self.graph_frame)
-            toolbar.update()
-            canvas.get_tk_widget().pack(side=TOP, fill=BOTH, expand=1)
-
     def create_graph(self, df_in, sel_cor):
-        self.graph_frame.destroy()
-        fig = Figure(figsize=(5, 4), dpi=100)
         tissue = sel_cor.split(" ")[0]
-        fig.add_subplot(111).scatter(df_in[tissue], df_in["tpm"])
-        self.graphs_frame(fig)
+        self.fig, self.ax = plt.subplots()
+        pts = self.ax.scatter(df_in[tissue], df_in["tpm"])
+        self.selector = SelectFromCollection(self.ax, pts)
+        self.fig.canvas.mpl_connect("key_press_event", self.accept)
+        self.ax.set_title("Press enter to accept selected points")
+        plt.show()
+
+    def accept(self, event):
+        if event.key == "enter":
+            print("Selected points:")
+            print(self.selector.xys[self.selector.ind])
+            self.selector.disconnect()
+            self.ax.set_title("")
+            self.fig.canvas.draw()
 
     def correlation(self, df_in):
         for i, r in df_in.iterrows():
