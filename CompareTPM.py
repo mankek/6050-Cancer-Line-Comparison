@@ -2,37 +2,49 @@ import pandas as pd
 import re
 import math
 from scipy.stats import levene
-
+import numpy as np
+from sklearn.decomposition import PCA
+from sklearn import preprocessing
 
 class GeneFrame(object):
-    def __init__(self, df):
-        self.df = df
-
-    def ensgToIndex(self):
-        self.df['gene'] = [re.sub('\..*','',x) for x in self.df['gene']]
-        self.df = self.df.set_index('gene')
-
-
-class GeneList(GeneFrame):
-    def __init__(self, Gene_List_CSV):
-        temp = pd.read_csv(Gene_List_CSV)
-        if isinstance(temp, pd.DataFrame) and \
-            all([x in temp.columns for x in ['gene','length']]):
-            super().__init__(temp)
-            self.ensgToIndex()
-        else:
-            raise TypeError('File did not return valid DataFrame.')
-
+    def ensgToIndex(self, df):
+        df['gene'] = [re.sub('\..*','',x) for x in df['gene']]
+        df = df.loc[[bool(re.match('ENSG',x)) for x in df['gene']]]
+        df = df.set_index('gene')
+        return df
 
 class CCLE(GeneFrame):
     def __init__(self, file, tissue=''):
-        self.df = pd.read_csv(file, sep='\t')
+        self.df = self.__importCounts(file)
         self.tissue = tissue.replace(' ', '_')
-        self.df = self.__geneCheck(self.df)
-        self.ensgToIndex()
+        self.geneList = self.df[self.df.keys()[:2]]
+        self.geneList.columns = ['gene', 'Name']
+        self.df = self.__tissueSelect(self.df)
+        self.df = pd.DataFrame(self.ensgToIndex(self.df), dtype=int)
+        self.geneList = self.ensgToIndex(self.geneList)
 
-    def __geneCheck(self, df):
-        temp = [bool(re.match('gene',x)) for x in df.columns]
+    def __importCounts(self, CCLE_File):
+        # import raw counts
+        f = open(CCLE_File)
+        table = []
+        hasNext = True
+        while hasNext:
+            l = f.readline().strip()
+            l = l.split('\t')
+            table.append(l)
+            if l == ['']:
+                hasNext = False
+
+        cols = pd.Series([len(x) for x in table]).value_counts().index[0]
+        newTable = []
+        for x in table:
+            if len(x) == cols:
+                newTable.append(x)
+        
+        return pd.DataFrame(newTable[1:], columns=newTable[0])
+
+    def __tissueSelect(self, df):
+        temp = [bool(re.match('[G,g]{1}ene',x)) or bool(re.match('[N,n]{1}ame',x)) for x in df.columns]
         if sum(temp) < 1:
             raise AttributeError("No 'gene' index found.")
         elif sum(temp) > 1:
@@ -45,44 +57,75 @@ class CCLE(GeneFrame):
 
 
 class Sample(GeneFrame):
-    def __init__(self, name, dataFrame, geneList=None):
+    def __init__(self, name, dataFrame):
         if isinstance(name, str) and isinstance(dataFrame, pd.DataFrame):
             if len(dataFrame.columns) > 2:
                 raise ValueError('A sample can only have two columns.')
             self.__name = name
             dataFrame.columns = ['gene','counts']
-            super().__init__(dataFrame)
-            self.ensgToIndex()
-            if isinstance(geneList, GeneList):
-                self.applyGeneList(geneList)
-            elif geneList != None:
-                raise TypeError('geneList must be a GeneList object.')
+            self.df = self.ensgToIndex(dataFrame)
+            self.__calcCPM()
         else:
             raise TypeError('Samples consist of a string and a pandas DataFrame.')
 
-    def applyGeneList(self, geneList):
-        self.df = pd.merge(self.df, geneList.df['length'], left_index=True, right_index=True)
-        self.__calcTPM()
+    def __calcCPM(self):
+        scaleFac = sum(self.df['counts'])/1000000
+        self.df['cpm'] = [x/scaleFac for x in self.df['counts']]
 
-    def __calcTPM(self):
-        self.df['rpk'] = self.df['counts']/(self.df['length']/1000)
-        self.df['tpm'] = self.__calc(self.df['rpk'])
+    def getCPM(self):
+        ret = self.df['cpm']
+        ret.name = self.__name
+        return ret
 
-    def compareCCLE(self, CCLE_Data):
-        self.cor = [['CCLE Sample', 'Levene','Pearson']]
-        if not isinstance(CCLE_Data, CCLE):
-            raise TypeError('CCLE parameter must be CCLE object.')
-        c = CCLE_Data.df.loc[self.df.index]
-        for i in c.columns:
-            scaleFac = sum(c[i])/1000000
-            c.loc[:][i] = self.__calc(c[i])
-            lValue = levene(self.df['tpm'], c[i])[1]
-            score = self.df['tpm'].corr(c[i])
-            self.cor.append([i,lValue,score])
-        self.cor = pd.DataFrame(self.cor)
-        self.df = pd.merge(self.df, c, left_index=True, right_index=True)
-    
+
+class GeneCompare():
+    def __init__(self, *samples, CCLE_Data):
+        self.__sCount = len(samples)
+        for x in range(0,self.__sCount):
+            if isinstance(samples[x], Sample):
+                if x == 0:
+                    self.df = samples[x].getCPM()
+                else:
+                    self.df = pd.merge(self.df,samples[x].getCPM(), left_index=True, right_index=True)
+            else:
+                raise TypeError('GeneCompare "samples" must be objects of type Sample.')
+        if isinstance(CCLE_Data, CCLE):
+            self.df = pd.merge(self.df, CCLE_Data.df, right_index=True, left_index=True)
+        else:
+            raise TypeError('GeneCompare "CCLE" must be objects of type CCLE.')
+        self.__normalize()
+
+    def __normalize(self):
+        self.cor = {}
+        df = self.df
+        n = self.__sCount
+        first = True
+        for c in df.columns[:n]:
+            df[c] = self.__calc(df[c])
+            tempCor = [['CCLE Sample', 'Levene','Pearson']]
+            for i in df.columns[n:]:
+                if first: df[i] = self.__calc(df[i])
+                lValue = levene(df[c], df[i])[1]
+                score = df[c].corr(df[i])
+                tempCor.append([i,lValue,score])
+            if first: first = False
+            tempCor = pd.DataFrame(tempCor[1:], columns=tempCor[0])
+            self.cor[c] = tempCor
+
     def __calc(self, x):
         scaleFac = sum(x)/1000000
-        return [(n/scaleFac) for n in x]
+        return [math.log2((n/scaleFac)+1) for n in x]
+
+    def calcPCA(self):
+        df = self.df.transpose()
+        x = df.loc[:].values
+        cells = pd.DataFrame(df.index.values, columns=['Cell Line'])
+        x = preprocessing.StandardScaler().fit_transform(x)
+
+        n = 4
+        pca = PCA(n_components=n)
+        pComp = pca.fit_transform(x)
+        pDF = pd.DataFrame(pComp, columns=['PC'+str(x) for x in list(range(1,n+1))])
+        self.PCA = pd.concat([cells,pDF], axis=1)
+        self.percVar = np.round(pca.explained_variance_ratio_* 100, decimals=2)
 
