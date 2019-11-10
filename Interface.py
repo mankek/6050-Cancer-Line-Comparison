@@ -55,7 +55,7 @@ class Interface:
         try:
             self.root_2.destroy()
             self.master.destroy()
-        except TclError:
+        except:
             self.master.destroy()
 
     # Extracts all GDC tissue types from file in Info-Files directory
@@ -96,10 +96,17 @@ class Interface:
         gdc_frame.pack(side=LEFT)
         gdc_title = Label(gdc_frame, text="GDC Menu", pady=5)
         gdc_title.pack()
-        gdc_buttons = Frame(gdc_frame)
+        gdc_buttons = Frame(gdc_frame, pady=10)
         gdc_buttons.pack()
         query_button = Button(gdc_buttons, text="Query Tissue", command=self.query)
         query_button.pack(side=LEFT)
+        gdc_options = Frame(gdc_frame)
+        gdc_options.pack()
+        num_label = Label(gdc_options, text="Select number of samples to Query")
+        num_label.pack()
+        num_samples = Scale(gdc_options, from_=0, to=20, orient=HORIZONTAL)
+        num_samples.set(5)
+        num_samples.pack()
         gdc_organs = Frame(gdc_frame, bd=10)
         gdc_organs.pack()
         scrollbar = Scrollbar(gdc_organs, orient=VERTICAL)
@@ -119,10 +126,12 @@ class Interface:
         ccle_frame.pack(side=LEFT)
         ccle_title = Label(ccle_frame, text="CCLE Menu", pady=5)
         ccle_title.pack()
-        ccle_buttons = Frame(ccle_frame)
+        ccle_buttons = Frame(ccle_frame, pady=10)
         ccle_buttons.pack()
         select_button = Button(ccle_buttons, text="Select Tissue", command=self.selection)
         select_button.pack(side=LEFT)
+        ccle_options = Frame(ccle_frame, height=60, pady=10)
+        ccle_options.pack()
         ccle_organs = Frame(ccle_frame, bd=10)
         ccle_organs.pack()
         scrollbar = Scrollbar(ccle_organs, orient=VERTICAL)
