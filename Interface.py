@@ -1,7 +1,7 @@
 import requests
 import json
 import matplotlib.pyplot as plt
-from CompareTPM import GeneList, CCLE, Sample
+from CompareTPM import GeneFrame, CCLE, Sample, GeneCompare
 from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
@@ -49,6 +49,8 @@ class Interface:
         self.GDC_frame()
         self.CCLE_frame()
         self.notifications()
+        # number of samples to query (user-chosen)
+        self.num_samples = 0
 
     # If analysis window is open when closing main interface window, analysis window is also closed
     def close_app(self):
@@ -104,8 +106,8 @@ class Interface:
         gdc_options.pack()
         num_label = Label(gdc_options, text="Select number of samples to Query")
         num_label.pack()
-        num_samples = Scale(gdc_options, from_=0, to=20, orient=HORIZONTAL)
-        num_samples.set(5)
+        num_samples = Scale(gdc_options, from_=0, to=20, orient=HORIZONTAL, command=self.get_sample_num)
+        # num_samples.set(5)
         num_samples.pack()
         gdc_organs = Frame(gdc_frame, bd=10)
         gdc_organs.pack()
@@ -165,13 +167,13 @@ class Interface:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, self.selected_gdc_organ + " was selected!\n")
             self.text_box.config(state="disabled")
-            self.query_obj = GDCQuery(self.selected_gdc_organ)
+            self.query_obj = GDCQuery(self.selected_gdc_organ, self.num_samples)
             resp, files = self.query_obj.query_files()
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "Response: " + str(resp) + "\nFiles found: " + str(len(files)) + "\n")
             self.text_box.insert(INSERT, "Querying data...\n")
             self.text_box.config(state="disabled")
-            result_text = self.query_obj.query_data(5)
+            result_text = self.query_obj.query_data()
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, result_text + "\n")
             self.text_box.config(state="disabled")
@@ -187,7 +189,7 @@ class Interface:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, self.selected_ccle_organ + " was selected!\n")
             self.text_box.config(state="disabled")
-            self.ccle_object = CCLE("Info-Files\CCLE_RNAseq_rsem_genes_tpm_20180929.txt", self.selected_ccle_organ)
+            self.ccle_object = CCLE(r"Info-Files\CCLE_RNAseq_genes_counts_20180929.gct", self.selected_ccle_organ)
         else:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "No CCLE tissue is selected.\n")
@@ -214,6 +216,9 @@ class Interface:
             self.text_box.insert(INSERT, "No GDC data available.\n")
             self.text_box.config(state="disabled")
 
+    def get_sample_num(self, val):
+        self.num_samples = val
+
     def close_analyze(self):
         self.root_2.destroy()
         plt.close()
@@ -223,95 +228,92 @@ class Interface:
 class Analyze:
 
     def __init__(self, master, query_obj, ccle_object):
-
+        self.master = master
         self.query_object = query_obj
         self.ccle_object = ccle_object
-        self.files_left = len(query_obj.file_uuid_list)
-        self.selected_file = ""
-        self.selected_cor = ""
+        self.compare_obj = GeneCompare(self.query_object.data_dict, self.ccle_object)
+        self.num_components = 2
+
         self.top_frame = Frame(master, bd=10)
         self.top_frame.pack()
         self.bottom_frame = Frame(master, bd=10)
         self.bottom_frame.pack(side=BOTTOM)
         self.title_frame()
-        self.file_frame()
-        # self.graphs_frame()
         self.analysis()
+
+    def report_menu(self):
+        report_menu = Menu(self.top_frame)
+        report_submenu = Menu(report_menu, tearoff=False)
+        report_submenu.add_command(label="Report Option 1")
+        report_menu.add_cascade(label="Report Options", menu=report_submenu)
+        self.top_frame.config(menu=report_menu)
 
     def title_frame(self):
         title_frame = Frame(self.top_frame)
         title_frame.pack()
         w = Label(title_frame, text="Welcome to our application!")
         w.pack()
+        menu_frame = Frame(self.top_frame)
+        menu_frame.pack()
+        scale_label = Label(menu_frame, text="Number of PCA Components")
+        scale_label.pack()
+        num_components = Scale(menu_frame, from_=2, to=4, orient=HORIZONTAL, command=self.get_num_components)
+        num_components.pack()
+        num_button = Button(menu_frame, text="Generate Graphs", command=self.analysis)
+        num_button.pack()
 
-    def file_frame(self):
-        file_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
-        file_frame.pack(side=LEFT, fill=BOTH, expand=1)
+    def get_num_components(self, val):
+        self.num_components = val
 
-        patient_frame = Frame(file_frame)
-        patient_frame.pack()
-        files_left = Label(patient_frame, text=str(self.files_left) + " patient files left!", pady=5)
-        files_left.pack()
-        files_here = Label(patient_frame, text="Patient data currently available:")
-        files_here.pack()
-        scrollbar = Scrollbar(patient_frame, orient=VERTICAL)
+    def pca_frame(self):
+        pca_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
+        pca_frame.pack(side=LEFT, fill=BOTH, expand=1)
+
+        scrollbar = Scrollbar(pca_frame, orient=VERTICAL)
         scrollbar.pack(side=RIGHT, fill=Y)
-        self.file_listbox = Listbox(patient_frame, width=50, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
-        self.file_listbox.pack()
-        scrollbar.config(command=self.file_listbox.yview)
-        for patient in self.query_object.data_dict.keys():
-            # patient_id = "".join([i for i in patient.keys()])
-            self.file_listbox.insert(END, patient)
+        self.component_listbox = Listbox(pca_frame, width=50, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
+        self.component_listbox.pack()
+        scrollbar.config(command=self.component_listbox.yview)
+        # for patient in self.compare_obj.percVar.data:
+        #     # patient_id = "".join([i for i in patient.keys()])
+        #     self.component_listbox.insert(END, patient)
+    #
+    #     button_frame = Frame(file_frame, pady=10)
+    #     button_frame.pack()
+    #     # add_button = Button(button_frame, text="Add 5 more patients")
+    #     # add_button.pack(side=LEFT)
+    #     analyze_button = Button(button_frame, text="Generate Graphs", command=self.analysis)
+    #     analyze_button.pack(side=LEFT)
 
-        button_frame = Frame(file_frame, pady=10)
-        button_frame.pack()
-        add_button = Button(button_frame, text="Add 5 more patients")
-        add_button.pack(side=LEFT)
-        analyze_button = Button(button_frame, text="Generate Graphs", command=self.analysis)
-        analyze_button.pack(side=LEFT)
-
-        line_frame = Frame(file_frame, pady=10)
-        line_frame.pack()
-        line_data = Label(line_frame, text="Cancer Cell Line and Correlation Statistics")
-        line_data.pack()
-        scrollbar = Scrollbar(line_frame, orient=VERTICAL)
-        scrollbar.pack(side=RIGHT, fill=Y)
-        self.line_listbox = Listbox(line_frame, width=50, height=5)
-        self.line_listbox.pack()
-        scrollbar.config(command=self.line_listbox.yview)
+        # line_frame = Frame(file_frame, pady=10)
+        # line_frame.pack()
+        # line_data = Label(line_frame, text="Cancer Cell Line and Correlation Statistics")
+        # line_data.pack()
+        # scrollbar = Scrollbar(line_frame, orient=VERTICAL)
+        # scrollbar.pack(side=RIGHT, fill=Y)
+        # self.line_listbox = Listbox(line_frame, width=50, height=5)
+        # self.line_listbox.pack()
+        # scrollbar.config(command=self.line_listbox.yview)
         # for number in range(0, 5):
         #     line_listbox.insert(END, number)
 
-    def choose_patient(self):
-        if self.file_listbox.curselection():
-            clicked_ind = self.file_listbox.curselection()[0]
-            self.selected_file = self.file_listbox.get(clicked_ind)
-        else:
-            self.file_listbox.activate(1)
-            self.selected_file = self.file_listbox.get(1)
-
-    def choose_cor(self):
-        if self.line_listbox.curselection():
-            clicked_ind = self.line_listbox.curselection()[0]
-            self.selected_cor = self.line_listbox.get(clicked_ind)
-        else:
-            self.line_listbox.activate(2)
-            self.selected_cor = self.line_listbox.get(2)
-
     def analysis(self):
-        self.choose_patient()
-        gene_list = GeneList("Info-Files/Gene_List.csv")
-        sample_df = self.query_object.data_dict[self.selected_file]
-        sample_obj = Sample(self.selected_file, sample_df, gene_list)
-        sample_obj.compareCCLE(self.ccle_object)
-        self.correlation(sample_obj.cor)
-        self.choose_cor()
-        self.create_graph(sample_obj.df, self.selected_cor)
+        self.compare_obj.calcPCA(self.num_components)
+        print(self.compare_obj.percVar)
+        self.create_graph(self.compare_obj.PCA, 1, self.num_components)
 
-    def create_graph(self, df_in, sel_cor):
-        tissue = sel_cor.split(" ")[0]
+    def num_graphs(self, num_components):
+        num_graphs = 0
+        for i in range(2, (num_components + 1)):
+            num_graphs = num_graphs + (i-1)
+        return num_graphs
+
+    def create_graph(self, df_in, comp_1, comp_2):
+        plt.close()
+        comp_1 = "PC" + str(comp_1)
+        comp_2 = "PC" + str(comp_2)
         self.fig, self.ax = plt.subplots()
-        pts = self.ax.scatter(df_in[tissue], df_in["tpm"])
+        pts = self.ax.scatter(df_in[comp_1], df_in[comp_2])
         self.selector = SelectFromCollection(self.ax, pts)
         self.fig.canvas.mpl_connect("key_press_event", self.accept)
         self.ax.set_title("Press enter to accept selected points")
@@ -325,21 +327,22 @@ class Analyze:
             self.ax.set_title("")
             self.fig.canvas.draw()
 
-    def correlation(self, df_in):
-        for i, r in df_in.iterrows():
-            entry = str(r[0]) + " " + str(r[1]) + " " + str(r[2])
-            # print(r)
-            self.line_listbox.insert(END, entry)
+    # def correlation(self, df_in):
+    #     for i, r in df_in.iterrows():
+    #         entry = str(r[0]) + " " + str(r[1]) + " " + str(r[2])
+    #         # print(r)
+    #         self.line_listbox.insert(END, entry)
 
 
 class GDCQuery:
 
-    def __init__(self, organ):
+    def __init__(self, organ, num_samples):
         self.files_endpt = "https://api.gdc.cancer.gov/files"
         self.organ = organ
         self.data_endpt = "https://api.gdc.cancer.gov/data"
         self.file_uuid_list = []
         self.data_dict = dict()
+        self.num_samples = num_samples
 
     def param_construct(self):
         filters = {
@@ -381,7 +384,7 @@ class GDCQuery:
             "filters": json.dumps(filters),
             "fields": "file_id",
             "format": "JSON",
-            "size": "20"
+            "size": str(self.num_samples)
             }
         return params
 
@@ -392,14 +395,14 @@ class GDCQuery:
             self.file_uuid_list.append(file_entry["file_id"])
         return response, self.file_uuid_list
 
-    def query_data(self, num_patients):
+    def query_data(self):
         if len(self.file_uuid_list) == 0:
             return "No data available!\n"
         else:
-            if num_patients > len(self.file_uuid_list):
-                num_patients = len(self.file_uuid_list)
-            sub_file_ids = self.file_uuid_list[:num_patients]
-            for file_index, file_id in enumerate(sub_file_ids):
+            num_patients = len(self.file_uuid_list)
+            #     num_patients = len(self.file_uuid_list)
+            # sub_file_ids = self.file_uuid_list[:num_patients]
+            for file_index, file_id in enumerate(self.file_uuid_list):
                 self.file_uuid_list.remove(file_id)
                 params = {"ids": file_id}
                 response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
@@ -432,7 +435,7 @@ class GDCQuery:
                 else:
                     continue
         file_data = pandas.DataFrame(self.data_dict[filename], index=self.data_dict[filename]["gene_id"])
-        self.data_dict[filename] = file_data
+        self.data_dict[filename] = Sample(self.organ, file_data)
         # self.data_list.append(data_dict)
         os.remove(filepath)
 
