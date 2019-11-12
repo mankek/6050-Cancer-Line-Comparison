@@ -13,6 +13,10 @@ class GeneFrame(object):
         df = df.set_index('gene')
         return df
 
+    def __calcCPM(self, s1, s2):
+        scaleFac = sum(self.df[s1])/1000000
+        self.df[s2] = [x/scaleFac for x in self.df[s1]]
+
 class CCLE(GeneFrame):
     def __init__(self, file, tissue=''):
         self.df = self.__importCounts(file)
@@ -20,7 +24,9 @@ class CCLE(GeneFrame):
         self.geneList = self.df[self.df.keys()[:2]]
         self.geneList.columns = ['gene', 'Name']
         self.df = self.__tissueSelect(self.df)
-        self.df = pd.DataFrame(self.ensgToIndex(self.df), dtype=int)
+        self.df = pd.DataFrame(self.ensgToIndex(self.df), dtype=float)
+        for x in self.df.keys():
+            self._GeneFrame__calcCPM(x,x)
         self.geneList = self.ensgToIndex(self.geneList)
 
     def __importCounts(self, CCLE_File):
@@ -64,13 +70,9 @@ class Sample(GeneFrame):
             self.__name = name
             dataFrame.columns = ['gene','counts']
             self.df = self.ensgToIndex(dataFrame)
-            self.__calcCPM()
+            self._GeneFrame__calcCPM('counts', 'cpm')
         else:
             raise TypeError('Samples consist of a string and a pandas DataFrame.')
-
-    def __calcCPM(self):
-        scaleFac = sum(self.df['counts'])/1000000
-        self.df['cpm'] = [x/scaleFac for x in self.df['counts']]
 
     def getCPM(self):
         ret = self.df['cpm']
@@ -79,14 +81,16 @@ class Sample(GeneFrame):
 
 
 class GeneCompare():
-    def __init__(self, *samples, CCLE_Data):
+    def __init__(self, samples, CCLE_Data):
         self.__sCount = len(samples)
-        for x in range(0,self.__sCount):
-            if isinstance(samples[x], Sample):
-                if x == 0:
-                    self.df = samples[x].getCPM()
+        for x in samples:
+            first = True
+            if isinstance(x, Sample):
+                if first:
+                    self.df = x.getCPM()
+                    first = False
                 else:
-                    self.df = pd.merge(self.df,samples[x].getCPM(), left_index=True, right_index=True)
+                    self.df = pd.merge(self.df,x.getCPM(), left_index=True, right_index=True)
             else:
                 raise TypeError('GeneCompare "samples" must be objects of type Sample.')
         if isinstance(CCLE_Data, CCLE):
@@ -101,10 +105,9 @@ class GeneCompare():
         n = self.__sCount
         first = True
         for c in df.columns[:n]:
-            df[c] = self.__calc(df[c])
             tempCor = [['CCLE Sample', 'Levene','Pearson']]
             for i in df.columns[n:]:
-                if first: df[i] = self.__calc(df[i])
+                if first: df[i] = [math.log2((n)+1) for n in df[i]]
                 lValue = levene(df[c], df[i])[1]
                 score = df[c].corr(df[i])
                 tempCor.append([i,lValue,score])
@@ -112,11 +115,7 @@ class GeneCompare():
             tempCor = pd.DataFrame(tempCor[1:], columns=tempCor[0])
             self.cor[c] = tempCor
 
-    def __calc(self, x):
-        scaleFac = sum(x)/1000000
-        return [math.log2((n/scaleFac)+1) for n in x]
-
-    def calcPCA(self):
+    def calcPCA(self, n):
         df = self.df.transpose()
         x = df.loc[:].values
         cells = pd.DataFrame(df.index.values, columns=['Cell Line'])
@@ -128,4 +127,5 @@ class GeneCompare():
         pDF = pd.DataFrame(pComp, columns=['PC'+str(x) for x in list(range(1,n+1))])
         self.PCA = pd.concat([cells,pDF], axis=1)
         self.percVar = np.round(pca.explained_variance_ratio_* 100, decimals=2)
+
 
