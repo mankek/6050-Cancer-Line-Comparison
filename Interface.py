@@ -5,6 +5,7 @@ from CompareTPM import CCLE, Sample, GeneCompare
 from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
+import tkinter
 import os
 import pandas
 import numpy as np
@@ -296,8 +297,8 @@ class Analyze:
         self.comp_1["menu"].delete(0, "end")
         self.comp_2["menu"].delete(0, "end")
         for i in range(1, (int(val) + 1)):
-            self.comp_1["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_1.set(str(i)))
-            self.comp_2["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_2.set(str(i)))
+            self.comp_1["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_1.set(value))
+            self.comp_2["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_2.set(value))
         self.component_listbox.delete(0, "end")
         for index, percentage in enumerate(np.nditer(self.compare_obj.percVar)):
             self.component_listbox.insert(END, "PC " + str(index + 1) + " Percent Variance: " + str(percentage))
