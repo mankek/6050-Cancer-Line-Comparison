@@ -1,7 +1,7 @@
 import requests
 import json
 import matplotlib.pyplot as plt
-from CompareTPM import CCLE, Sample, GeneCompare
+from CompareCPM import CCLE, Sample, GeneCompare
 from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
@@ -268,7 +268,7 @@ class Analyze:
         menu_frame.pack()
         scale_label = Label(menu_frame, text="Number of PCA Components")
         scale_label.pack()
-        num_components_scale = Scale(menu_frame, from_=2, to=4, orient=HORIZONTAL, command=self.change_num_components)
+        num_components_scale = Scale(menu_frame, from_=2, to=6, orient=HORIZONTAL, command=self.change_num_components)
         num_components_scale.set(2)
         num_components_scale.pack()
         select_label = Label(menu_frame, text="Select the Graphed Components")
