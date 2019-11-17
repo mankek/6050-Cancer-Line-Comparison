@@ -10,6 +10,7 @@ import os
 import pandas
 import numpy as np
 import time
+import random
 
 # Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
@@ -57,7 +58,7 @@ class Interface:
         # number of samples to query (user-chosen)
         self.num_samples = 0
 
-    # If analysis window is open when closing main interface window, analysis window is also closed
+    # If analysis window is open when closing main interface window, analysis window is also closed along with any plots
     def close_app(self):
         try:
             self.root_2.destroy()
@@ -166,6 +167,7 @@ class Interface:
         scrollbar.config(command=self.text_box.yview)
 
     # if a GDC tissue has been selected
+    # the user is notified and a GDCQuery object is created
     def query(self):
         if self.gdc_listbox.curselection():
             clicked_ind = self.gdc_listbox.curselection()[0]
@@ -428,12 +430,10 @@ class GDCQuery:
                     gene_count = i_split[1].rstrip()
                     self.data_dict[filename]["gene_id"].append(gene_id)
                     self.data_dict[filename]["gene_count"].append(int(gene_count))
-                    # data_dict[filename][gene_id] = gene_count
                 else:
                     continue
         file_data = pandas.DataFrame(self.data_dict[filename], index=self.data_dict[filename]["gene_id"])
-        self.data_dict[filename] = Sample(self.organ, file_data)
-        # self.data_list.append(data_dict)
+        self.data_dict[filename] = Sample(filename + self.organ, file_data)
         os.remove(filepath)
 
 
