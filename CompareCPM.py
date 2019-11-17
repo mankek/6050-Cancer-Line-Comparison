@@ -125,6 +125,7 @@ class GeneCompare():
         pComp = pca.fit_transform(x)
         pDF = pd.DataFrame(pComp, columns=['PC'+str(x) for x in list(range(1,n+1))])
         self.PCA = pd.concat([cells,pDF], axis=1)
+        self.PCA = self.PCA.set_index('Cell Line', drop=True)
         self.percVar = np.round(pca.explained_variance_ratio_* 100, decimals=2)
 
     def sampleKeys(self):
@@ -132,3 +133,13 @@ class GeneCompare():
 
     def CCLEKeys(self):
         return self.df.keys()[self.__sCount:]
+
+    def co_PCA(self, comp_1, comp_2, coordinates):
+        df = self.PCA[[comp_1,comp_2]]
+        cLine = []
+        for x in coordinates:
+            cLine.extend(list(df[[self.__round(x,12) == self.__round(df.loc[i],12) for i in df.index]].index))
+        return sorted(set(cLine))
+
+    def __round(self, l, n):
+        return [round(x,n) for x in l]
