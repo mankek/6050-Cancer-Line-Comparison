@@ -433,7 +433,7 @@ class GDCQuery:
                 else:
                     continue
         file_data = pandas.DataFrame(self.data_dict[filename], index=self.data_dict[filename]["gene_id"])
-        self.data_dict[filename] = Sample(filename + self.organ, file_data)
+        self.data_dict[filename] = Sample(str(self.file_uuid_list.index(filename)) + self.organ, file_data)
         os.remove(filepath)
 
 
