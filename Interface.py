@@ -9,7 +9,7 @@ import tkinter
 import os
 import pandas
 import numpy as np
-import math
+import time
 
 # Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
@@ -292,7 +292,7 @@ class Analyze:
         self.component_listbox.pack()
         scrollbar.config(command=self.component_listbox.yview)
         for index, percentage in enumerate(np.nditer(self.compare_obj.percVar)):
-            self.component_listbox.insert(END, "PC " + str(index) + " Percent Variance: " + str(percentage))
+            self.component_listbox.insert(END, "PC " + str(index + 1) + " - Percent Variance: " + str(percentage))
 
     def change_num_components(self, val):
         self.compare_obj.calcPCA(int(val))
@@ -307,13 +307,6 @@ class Analyze:
 
     def analysis(self):
         self.create_graph(self.compare_obj.PCA, int(self.chosen_comp_1.get()), int(self.chosen_comp_2.get()))
-
-    # def num_graphs(self):
-    #     num_graphs = 0
-    #     for i in range(2, (self.num_components + 1)):
-    #         num_graphs = num_graphs + (i-1)
-    #     num_columns = math.ceil(num_graphs/2)
-    #     return num_graphs, num_columns
 
     def create_graph(self, df_in, comp_1, comp_2):
         plt.close()
@@ -406,6 +399,7 @@ class GDCQuery:
             #     num_patients = len(self.file_uuid_list)
             # sub_file_ids = self.file_uuid_list[:num_patients]
             for file_index, file_id in enumerate(self.file_uuid_list):
+                time.sleep(0.01)
                 self.file_uuid_list.remove(file_id)
                 params = {"ids": file_id}
                 response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
