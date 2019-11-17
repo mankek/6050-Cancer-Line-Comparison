@@ -120,8 +120,6 @@ class GeneCompare():
         x = df.loc[:].values
         cells = pd.DataFrame(df.index.values, columns=['Cell Line'])
         x = preprocessing.StandardScaler().fit_transform(x)
-
-        n = 4
         pca = PCA(n_components=n)
         pComp = pca.fit_transform(x)
         pDF = pd.DataFrame(pComp, columns=['PC'+str(x) for x in list(range(1,n+1))])

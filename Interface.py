@@ -1,12 +1,14 @@
 import requests
 import json
 import matplotlib.pyplot as plt
-from CompareTPM import GeneFrame, CCLE, Sample, GeneCompare
+from CompareTPM import CCLE, Sample, GeneCompare
 from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
 import os
 import pandas
+import numpy as np
+import math
 
 # Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
@@ -57,6 +59,7 @@ class Interface:
         try:
             self.root_2.destroy()
             self.master.destroy()
+            plt.close()
         except:
             self.master.destroy()
 
@@ -233,20 +236,27 @@ class Analyze:
         self.ccle_object = ccle_object
         self.compare_obj = GeneCompare(self.query_object.data_dict, self.ccle_object)
         self.num_components = 2
-
+        self.chosen_comp_1 = StringVar(master)
+        self.chosen_comp_1.set("1")
+        self.chosen_comp_2 = StringVar(master)
+        self.chosen_comp_2.set("2")
+        # self.comp_options = [str(i) for i in range(1, (self.num_components + 1))]
+        self.compare_obj.calcPCA(self.num_components)
         self.top_frame = Frame(master, bd=10)
         self.top_frame.pack()
         self.bottom_frame = Frame(master, bd=10)
         self.bottom_frame.pack(side=BOTTOM)
+        self.report_menu()
         self.title_frame()
-        self.analysis()
+        # self.analysis()
+        self.pca_frame()
 
     def report_menu(self):
-        report_menu = Menu(self.top_frame)
+        report_menu = Menu(self.master)
         report_submenu = Menu(report_menu, tearoff=False)
         report_submenu.add_command(label="Report Option 1")
         report_menu.add_cascade(label="Report Options", menu=report_submenu)
-        self.top_frame.config(menu=report_menu)
+        self.master.config(menu=report_menu)
 
     def title_frame(self):
         title_frame = Frame(self.top_frame)
@@ -257,56 +267,50 @@ class Analyze:
         menu_frame.pack()
         scale_label = Label(menu_frame, text="Number of PCA Components")
         scale_label.pack()
-        num_components = Scale(menu_frame, from_=2, to=4, orient=HORIZONTAL, command=self.get_num_components)
-        num_components.pack()
+        num_components_scale = Scale(menu_frame, from_=2, to=4, orient=HORIZONTAL, command=self.change_num_components)
+        num_components_scale.set(2)
+        num_components_scale.pack()
+        select_label = Label(menu_frame, text="Select the Graphed Components")
+        select_label.pack()
+        comp_options = [str(i) for i in range(1, 3)]
+        self.comp_1 = OptionMenu(menu_frame, self.chosen_comp_1, *tuple(comp_options))
+        self.comp_1.pack(side=LEFT)
+        self.comp_2 = OptionMenu(menu_frame, self.chosen_comp_2, *tuple(comp_options))
+        self.comp_2.pack(side=LEFT)
         num_button = Button(menu_frame, text="Generate Graphs", command=self.analysis)
-        num_button.pack()
-
-    def get_num_components(self, val):
-        self.num_components = val
+        num_button.pack(side=BOTTOM)
 
     def pca_frame(self):
         pca_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
         pca_frame.pack(side=LEFT, fill=BOTH, expand=1)
-
         scrollbar = Scrollbar(pca_frame, orient=VERTICAL)
         scrollbar.pack(side=RIGHT, fill=Y)
-        self.component_listbox = Listbox(pca_frame, width=50, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
+        self.component_listbox = Listbox(pca_frame, width=40, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
         self.component_listbox.pack()
         scrollbar.config(command=self.component_listbox.yview)
-        # for patient in self.compare_obj.percVar.data:
-        #     # patient_id = "".join([i for i in patient.keys()])
-        #     self.component_listbox.insert(END, patient)
-    #
-    #     button_frame = Frame(file_frame, pady=10)
-    #     button_frame.pack()
-    #     # add_button = Button(button_frame, text="Add 5 more patients")
-    #     # add_button.pack(side=LEFT)
-    #     analyze_button = Button(button_frame, text="Generate Graphs", command=self.analysis)
-    #     analyze_button.pack(side=LEFT)
+        for index, percentage in enumerate(np.nditer(self.compare_obj.percVar)):
+            self.component_listbox.insert(END, "PC " + str(index) + " Percent Variance: " + str(percentage))
 
-        # line_frame = Frame(file_frame, pady=10)
-        # line_frame.pack()
-        # line_data = Label(line_frame, text="Cancer Cell Line and Correlation Statistics")
-        # line_data.pack()
-        # scrollbar = Scrollbar(line_frame, orient=VERTICAL)
-        # scrollbar.pack(side=RIGHT, fill=Y)
-        # self.line_listbox = Listbox(line_frame, width=50, height=5)
-        # self.line_listbox.pack()
-        # scrollbar.config(command=self.line_listbox.yview)
-        # for number in range(0, 5):
-        #     line_listbox.insert(END, number)
+    def change_num_components(self, val):
+        self.compare_obj.calcPCA(int(val))
+        self.comp_1["menu"].delete(0, "end")
+        self.comp_2["menu"].delete(0, "end")
+        for i in range(1, (int(val) + 1)):
+            self.comp_1["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_1.set(str(i)))
+            self.comp_2["menu"].add_command(label=str(i), command=lambda value=str(i): self.chosen_comp_2.set(str(i)))
+        self.component_listbox.delete(0, "end")
+        for index, percentage in enumerate(np.nditer(self.compare_obj.percVar)):
+            self.component_listbox.insert(END, "PC " + str(index + 1) + " Percent Variance: " + str(percentage))
 
     def analysis(self):
-        self.compare_obj.calcPCA(self.num_components)
-        print(self.compare_obj.percVar)
-        self.create_graph(self.compare_obj.PCA, 1, self.num_components)
+        self.create_graph(self.compare_obj.PCA, int(self.chosen_comp_1.get()), int(self.chosen_comp_2.get()))
 
-    def num_graphs(self, num_components):
-        num_graphs = 0
-        for i in range(2, (num_components + 1)):
-            num_graphs = num_graphs + (i-1)
-        return num_graphs
+    # def num_graphs(self):
+    #     num_graphs = 0
+    #     for i in range(2, (self.num_components + 1)):
+    #         num_graphs = num_graphs + (i-1)
+    #     num_columns = math.ceil(num_graphs/2)
+    #     return num_graphs, num_columns
 
     def create_graph(self, df_in, comp_1, comp_2):
         plt.close()
@@ -317,6 +321,8 @@ class Analyze:
         self.selector = SelectFromCollection(self.ax, pts)
         self.fig.canvas.mpl_connect("key_press_event", self.accept)
         self.ax.set_title("Press enter to accept selected points")
+        plt.xlabel(comp_1)
+        plt.ylabel(comp_2)
         plt.show()
 
     def accept(self, event):
