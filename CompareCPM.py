@@ -9,7 +9,7 @@ from sklearn import preprocessing
 class GeneFrame(object):
     def ensgToIndex(self, df):
         df['gene'] = [re.sub('\..*','',x) for x in df['gene']]
-        df = df.loc[[bool(re.match('ENSG',x)) for x in df['gene']]]
+        df = df.loc[[bool(re.match('ENSG',x,re.I)) for x in df['gene']]]
         df = df.set_index('gene')
         return df
 
@@ -50,7 +50,7 @@ class CCLE(GeneFrame):
         return pd.DataFrame(newTable[1:], columns=newTable[0])
 
     def __tissueSelect(self, df):
-        temp = [bool(re.match('[G,g]{1}ene',x)) or bool(re.match('[N,n]{1}ame',x)) for x in df.columns]
+        temp = [bool(re.match('gene',x,re.I)) or bool(re.match('name',x,re.I)) for x in df.columns]
         if sum(temp) < 1:
             raise AttributeError("No 'gene' index found.")
         elif sum(temp) > 1:
@@ -120,6 +120,7 @@ class GeneCompare():
         x = df.loc[:].values
         cells = pd.DataFrame(df.index.values, columns=['Cell Line'])
         x = preprocessing.StandardScaler().fit_transform(x)
+
         pca = PCA(n_components=n)
         pComp = pca.fit_transform(x)
         pDF = pd.DataFrame(pComp, columns=['PC'+str(x) for x in list(range(1,n+1))])
