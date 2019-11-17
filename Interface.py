@@ -330,15 +330,9 @@ class Analyze:
         if event.key == "enter":
             print("Selected points:")
             print(self.selector.xys[self.selector.ind])
-            self.selector.disconnect()
+            # self.selector.disconnect()
             self.ax.set_title("")
             self.fig.canvas.draw()
-
-    # def correlation(self, df_in):
-    #     for i, r in df_in.iterrows():
-    #         entry = str(r[0]) + " " + str(r[1]) + " " + str(r[2])
-    #         # print(r)
-    #         self.line_listbox.insert(END, entry)
 
 
 class GDCQuery:

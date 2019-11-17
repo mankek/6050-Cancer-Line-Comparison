@@ -83,7 +83,7 @@ class Sample(GeneFrame):
 class GeneCompare():
     def __init__(self, samples, CCLE_Data):
         self.__sCount = len(samples)
-        for x in samples:
+        for x in samples.values():
             first = True
             if isinstance(x, Sample):
                 if first:
