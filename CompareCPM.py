@@ -83,7 +83,7 @@ class Sample(GeneFrame):
 class GeneCompare():
     def __init__(self, samples, CCLE_Data):
         self.__sCount = len(samples)
-        for x in samples.values():
+        for x in samples:
             first = True
             if isinstance(x, Sample):
                 if first:
@@ -127,4 +127,8 @@ class GeneCompare():
         self.PCA = pd.concat([cells,pDF], axis=1)
         self.percVar = np.round(pca.explained_variance_ratio_* 100, decimals=2)
 
+    def sampleKeys(self):
+        return self.df.keys()[:self.__sCount]
 
+    def CCLEKeys(self):
+        return self.df.keys()[self.__sCount:]
