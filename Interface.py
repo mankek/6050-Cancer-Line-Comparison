@@ -13,6 +13,8 @@ import math
 
 # Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
+if not os.path.exists(file_dir):
+    os.mkdir(file_dir)
 
 
 class Interface:
