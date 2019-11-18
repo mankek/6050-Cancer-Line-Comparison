@@ -403,7 +403,7 @@ class GDCQuery:
             #     num_patients = len(self.file_uuid_list)
             # sub_file_ids = self.file_uuid_list[:num_patients]
             for file_index, file_id in enumerate(self.file_uuid_list):
-                time.sleep(0.01)
+                time.sleep(0.001)
                 self.file_uuid_list.remove(file_id)
                 params = {"ids": file_id}
                 response = requests.post(self.data_endpt, data=json.dumps(params), headers={"Content-Type": "application/json"})
