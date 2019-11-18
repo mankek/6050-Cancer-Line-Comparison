@@ -324,9 +324,11 @@ class Analyze:
         plt.show()
 
     def accept(self, event):
+        comp_1 = "PC" + str(self.chosen_comp_1.get())
+        comp_2 = "PC" + str(self.chosen_comp_2.get())
         if event.key == "enter":
             print("Selected points:")
-            print(self.selector.xys[self.selector.ind])
+            print(self.compare_obj.co_PCA(comp_1, comp_2, self.selector.xys[self.selector.ind]))
             # self.selector.disconnect()
             self.ax.set_title("")
             self.fig.canvas.draw()
@@ -433,7 +435,7 @@ class GDCQuery:
                 else:
                     continue
         file_data = pandas.DataFrame(self.data_dict[filename], index=self.data_dict[filename]["gene_id"])
-        self.data_dict[filename] = Sample(str(self.file_uuid_list.index(filename)) + self.organ, file_data)
+        self.data_dict[filename] = Sample(filename, file_data)
         os.remove(filepath)
 
 
