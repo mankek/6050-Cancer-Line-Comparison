@@ -83,8 +83,8 @@ class Sample(GeneFrame):
 class GeneCompare():
     def __init__(self, samples, CCLE_Data):
         self.__sCount = len(samples)
+        first = True
         for x in samples.values():
-            first = True
             if isinstance(x, Sample):
                 if first:
                     self.df = x.getCPM()
