@@ -10,7 +10,6 @@ import os
 import pandas
 import numpy as np
 import time
-import random
 
 # Path to the directory that holds downloaded GDC files
 file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
@@ -245,22 +244,25 @@ class Analyze:
         self.chosen_comp_1.set("1")
         self.chosen_comp_2 = StringVar(master)
         self.chosen_comp_2.set("2")
-        # self.comp_options = [str(i) for i in range(1, (self.num_components + 1))]
         self.compare_obj.calcPCA(self.num_components)
+        self.selected_points, self.selected_tissues = self.get_all_points(self.compare_obj.PCA["PC1"], self.compare_obj.PCA["PC2"], "PC1", "PC2")
         self.top_frame = Frame(master, bd=10)
         self.top_frame.pack()
+        self.middle_frame = Frame(master, bd=10)
+        self.middle_frame.pack()
         self.bottom_frame = Frame(master, bd=10)
         self.bottom_frame.pack(side=BOTTOM)
         self.report_menu()
         self.title_frame()
-        # self.analysis()
         self.pca_frame()
+        self.selection_frame()
 
     def report_menu(self):
         report_menu = Menu(self.master)
-        report_submenu = Menu(report_menu, tearoff=False)
-        report_submenu.add_command(label="Report Option 1")
-        report_menu.add_cascade(label="Report Options", menu=report_submenu)
+        report_menu.add_command(label="Generate Report")
+        # report_submenu = Menu(report_menu, tearoff=False)
+        # report_submenu.add_command(label="Report Option 1")
+        # report_menu.add_cascade(label="Report Options", menu=report_submenu)
         self.master.config(menu=report_menu)
 
     def title_frame(self):
@@ -286,7 +288,7 @@ class Analyze:
         num_button.pack(side=BOTTOM)
 
     def pca_frame(self):
-        pca_frame = Frame(self.bottom_frame, relief=RAISED, pady=5, bd=5)
+        pca_frame = Frame(self.middle_frame, relief=RAISED, pady=5, bd=5)
         pca_frame.pack(side=LEFT, fill=BOTH, expand=1)
         scrollbar = Scrollbar(pca_frame, orient=VERTICAL)
         scrollbar.pack(side=RIGHT, fill=Y)
@@ -295,6 +297,18 @@ class Analyze:
         scrollbar.config(command=self.component_listbox.yview)
         for index, percentage in enumerate(np.nditer(self.compare_obj.percVar)):
             self.component_listbox.insert(END, "PC " + str(index + 1) + " - Percent Variance: " + str(percentage))
+
+    def selection_frame(self):
+        sel_frame = Frame(self.bottom_frame, relief=RAISED, pady=10, bd=5)
+        sel_frame.pack()
+        scrollbar = Scrollbar(sel_frame, orient=VERTICAL)
+        scrollbar.pack(side=RIGHT, fill=Y)
+        self.selection_listbox = Listbox(sel_frame, width=40, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)
+        self.selection_listbox.pack()
+        sel_buttons = Frame(self.bottom_frame)
+        sel_buttons.pack(side=BOTTOM)
+        apply_points = Button(sel_buttons, text="Apply Selected Points")
+        apply_points.pack()
 
     def change_num_components(self, val):
         self.compare_obj.calcPCA(int(val))
@@ -314,8 +328,13 @@ class Analyze:
         plt.close()
         comp_1 = "PC" + str(comp_1)
         comp_2 = "PC" + str(comp_2)
+        x_points = df_in[comp_1]
+        y_points = df_in[comp_2]
+        all_points, all_tissues = self.get_all_points(x_points, y_points, comp_1, comp_2)
+        # print(all_tissues)
+        colors = self.get_colors(all_tissues)
         self.fig, self.ax = plt.subplots()
-        pts = self.ax.scatter(df_in[comp_1], df_in[comp_2])
+        pts = self.ax.scatter(x_points, y_points, c=colors)
         self.selector = SelectFromCollection(self.ax, pts)
         self.fig.canvas.mpl_connect("key_press_event", self.accept)
         self.ax.set_title("Press enter to accept selected points")
@@ -323,14 +342,34 @@ class Analyze:
         plt.ylabel(comp_2)
         plt.show()
 
+    def get_all_points(self, x_points, y_points, comp_1, comp_2):
+        points = []
+        for x, y in zip(x_points, y_points):
+            # point_pair = np.array([x, y])
+            point_pair = [x, y]
+            points.append(point_pair)
+        all_tissues = self.compare_obj.co_PCA(comp_1, comp_2, points)
+        return points, all_tissues
+
+    def get_colors(self, tissues_list):
+        colors = [0 if tissue.isupper() else 1 for tissue in tissues_list]
+        return colors
+
     def accept(self, event):
         comp_1 = "PC" + str(self.chosen_comp_1.get())
         comp_2 = "PC" + str(self.chosen_comp_2.get())
         if event.key == "enter":
-            print("Selected points:")
-            print(self.compare_obj.co_PCA(comp_1, comp_2, self.selector.xys[self.selector.ind]))
+            # print("Selected points:")
+            selected_points = self.selector.xys[self.selector.ind]
+            print(selected_points)
+            selected_tissues = self.compare_obj.co_PCA(comp_1, comp_2, self.selector.xys[self.selector.ind])
+            self.selection_listbox.delete(0, "end")
+            self.selection_listbox.insert(END, str(len(selected_tissues)) + " points selected!")
+            self.selection_listbox.insert(END, "Selected from graph of " + comp_1 + " and " + comp_2)
+            self.selected_points = selected_points
+            self.selected_tissues = selected_tissues
             # self.selector.disconnect()
-            self.ax.set_title("")
+            # self.ax.set_title("")
             self.fig.canvas.draw()
 
 
