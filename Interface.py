@@ -10,9 +10,10 @@ import os
 import pandas
 import numpy as np
 import time
+import re
 
 # Path to the directory that holds downloaded GDC files
-file_dir = "\\".join(os.path.dirname(os.path.abspath(__file__)).split("\\")[0:]) + r"\Data-Files"
+file_dir = os.path.join(os.getcwd(), "Data-Files")
 if not os.path.exists(file_dir):
     os.mkdir(file_dir)
 
@@ -84,6 +85,21 @@ class Interface:
             for i in organ_file.readlines()[1:]:
                 organ_list.append(i.split(",")[0])
             return organ_list
+
+    @staticmethod
+    def get_CCLE_data():
+        """Test desc"""
+        info_dir = os.path.join(os.getcwd(), "Info-Files")
+        for file in os.listdir(info_dir):
+            searchobj = re.search(r"(^CCLE)_RNAseq_genes_counts_(.*)", file)
+            if searchobj:
+                paths = [os.path.join(info_dir, i) for i in searchobj.group().split("\n")]
+                if len(paths) > 1:
+                    creation_times = [int(i.split("_")[-1].split(".")[0]) for i in paths]
+                    most_recent = creation_times.index(max(creation_times))
+                    return paths[most_recent]
+                else:
+                    return paths[0]
 
     # defines title frame
     # fills title frame with app title and analyze button
@@ -196,7 +212,13 @@ class Interface:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, self.selected_ccle_organ + " was selected!\n")
             self.text_box.config(state="disabled")
-            self.ccle_object = CCLE(r"Info-Files\CCLE_RNAseq_genes_counts_20180929.gct", self.selected_ccle_organ)
+            ccle_path = self.get_CCLE_data()
+            if os.path.exists(ccle_path):
+                self.ccle_object = CCLE(ccle_path, self.selected_ccle_organ)
+            else:
+                self.text_box.config(state="normal")
+                self.text_box.insert(INSERT, "No CCLE data file found.\n")
+                self.text_box.config(state="disabled")
         else:
             self.text_box.config(state="normal")
             self.text_box.insert(INSERT, "No CCLE tissue is selected.\n")
@@ -307,8 +329,8 @@ class Analyze:
         self.selection_listbox.pack()
         sel_buttons = Frame(self.bottom_frame)
         sel_buttons.pack(side=BOTTOM)
-        apply_points = Button(sel_buttons, text="Apply Selected Points")
-        apply_points.pack()
+        # apply_points = Button(sel_buttons, text="Apply Selected Points")
+        # apply_points.pack()
 
     def change_num_components(self, val):
         self.compare_obj.calcPCA(int(val))
@@ -335,6 +357,10 @@ class Analyze:
         colors = self.get_colors(all_tissues)
         self.fig, self.ax = plt.subplots()
         pts = self.ax.scatter(x_points, y_points, c=colors)
+        legend1 = self.ax.legend(*pts.legend_elements(), loc="upper right", title="Type")
+        legend1.get_texts()[0].set_text("CCLE")
+        legend1.get_texts()[1].set_text("GDC")
+        self.ax.add_artist(legend1)
         self.selector = SelectFromCollection(self.ax, pts)
         self.fig.canvas.mpl_connect("key_press_event", self.accept)
         self.ax.set_title("Press enter to accept selected points")
@@ -345,7 +371,6 @@ class Analyze:
     def get_all_points(self, x_points, y_points, comp_1, comp_2):
         points = []
         for x, y in zip(x_points, y_points):
-            # point_pair = np.array([x, y])
             point_pair = [x, y]
             points.append(point_pair)
         all_tissues = self.compare_obj.co_PCA(comp_1, comp_2, points)
@@ -361,7 +386,7 @@ class Analyze:
         if event.key == "enter":
             # print("Selected points:")
             selected_points = self.selector.xys[self.selector.ind]
-            print(selected_points)
+            # print(selected_points)
             selected_tissues = self.compare_obj.co_PCA(comp_1, comp_2, self.selector.xys[self.selector.ind])
             self.selection_listbox.delete(0, "end")
             self.selection_listbox.insert(END, str(len(selected_tissues)) + " points selected!")
@@ -481,3 +506,17 @@ class GDCQuery:
 root = Tk()
 app = Interface(root)
 root.mainloop()
+
+# info_dir = os.path.join(os.getcwd(), "Info-Files")
+# for file in os.listdir(info_dir):
+#     searchobj = re.search(r"(^CCLE)_RNAseq_genes_counts_(.*).gz", file)
+#     if searchobj:
+#         print(searchobj.group())
+        # paths = [os.path.join(info_dir, i) for i in searchobj.group().split("\n")]
+        # if len(paths) > 1:
+        #     creation_times = [os.path.getctime(i) for i in paths]
+        #     most_recent = creation_times.index(max(creation_times))
+        #     print(paths[most_recent])
+        # else:
+        #     print(paths[0])
+
