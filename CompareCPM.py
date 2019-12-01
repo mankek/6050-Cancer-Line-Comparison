@@ -173,10 +173,15 @@ class GeneReport():
         file_dir = os.getcwd() + r"\Reports"
         if not os.path.exists(file_dir):
             os.mkdir(file_dir)
-        self.__createWorkbook(file_dir)
-        self.__popGeneSummary()
-        self.__popCorrelationSheet()
-        self.writer.save()
+        error = False
+        try:
+            self.__createWorkbook(file_dir)
+            self.__popGeneSummary()
+            self.__popCorrelationSheet()
+            self.writer.save()
+        except:
+            error = True
+        return error
 
     def __createWorkbook(self, file_dir):
         ts = strftime("%Y-%m-%d %H%M%S", localtime())
