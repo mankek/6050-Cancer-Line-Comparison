@@ -1,10 +1,11 @@
 import requests
 import json
 import matplotlib.pyplot as plt
-from CompareCPM import CCLE, Sample, GeneCompare
+from CompareCPM import CCLE, Sample, GeneCompare, GeneReport
 from lasso_selector_demo_sgskip import SelectFromCollection
 import gzip
 from tkinter import *
+from tkinter import messagebox
 import tkinter
 import os
 import pandas
@@ -91,7 +92,7 @@ class Interface:
         """Test desc"""
         info_dir = os.path.join(os.getcwd(), "Info-Files")
         for file in os.listdir(info_dir):
-            searchobj = re.search(r"(^CCLE)_RNAseq_genes_counts_(.*)", file)
+            searchobj = re.search(r"(^CCLE)_RNAseq_genes_counts_(.*).gz", file)
             if searchobj:
                 paths = [os.path.join(info_dir, i) for i in searchobj.group().split("\n")]
                 if len(paths) > 1:
@@ -279,9 +280,18 @@ class Analyze:
         self.pca_frame()
         self.selection_frame()
 
+    def make_report(self):
+        # check for all needed things
+        report_obj = GeneReport(self.compare_obj, self.selected_tissues, self.ccle_object)
+        flag = report_obj.exportXLSX()
+        if flag:
+            messagebox.showerror("Report Failed", "Report failed to be generated!")
+        else:
+            messagebox.showinfo("Report Status", "Report successfully generated!")
+
     def report_menu(self):
         report_menu = Menu(self.master)
-        report_menu.add_command(label="Generate Report")
+        report_menu.add_command(label="Generate Report", command=self.make_report)
         # report_submenu = Menu(report_menu, tearoff=False)
         # report_submenu.add_command(label="Report Option 1")
         # report_menu.add_cascade(label="Report Options", menu=report_submenu)
@@ -377,7 +387,7 @@ class Analyze:
         return points, all_tissues
 
     def get_colors(self, tissues_list):
-        colors = [0 if tissue.isupper() else 1 for tissue in tissues_list]
+        colors = [0 if tissue in self.compare_obj.CCLEKeys() else 1 for tissue in tissues_list]
         return colors
 
     def accept(self, event):
