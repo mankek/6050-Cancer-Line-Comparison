@@ -38,6 +38,7 @@ class Interface:
         # defines behavior for quitting main interface window
         master.protocol("WM_DELETE_WINDOW", self.close_app)
         self.master = master
+        self.master.title("Gene Comparison Tool")
         # defines frames of interface
         self.top_frame = Frame(master)
         self.top_frame.pack()
@@ -231,6 +232,7 @@ class Interface:
             self.analyze_button.config(state="disabled")
             self.root_2 = Tk()
             self.root_2.protocol("WM_DELETE_WINDOW", self.close_analyze)
+            self.root_2.title("GC - Analysis")
             app_2 = Analyze(self.root_2, self.query_obj, self.ccle_object)
             self.root_2.mainloop()
         elif not self.selected_gdc_organ:
@@ -368,6 +370,7 @@ class Analyze:
         # print(all_tissues)
         colors = self.get_colors(all_tissues)
         self.fig, self.ax = plt.subplots()
+        self.fig.canvas.set_window_title('Principle Component Graph')
         pts = self.ax.scatter(x_points, y_points, c=colors)
         legend1 = self.ax.legend(*pts.legend_elements(), loc="upper right", title="Type")
         legend1.get_texts()[0].set_text("CCLE")
