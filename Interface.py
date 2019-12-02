@@ -333,6 +333,8 @@ class Analyze:
     def selection_frame(self):
         sel_frame = Frame(self.bottom_frame, relief=RAISED, pady=10, bd=5)
         sel_frame.pack()
+        sel_title = Label(sel_frame, text="Selected Points")
+        sel_title.pack()
         scrollbar = Scrollbar(sel_frame, orient=VERTICAL)
         scrollbar.pack(side=RIGHT, fill=Y)
         self.selection_listbox = Listbox(sel_frame, width=40, height=5, yscrollcommand=scrollbar.set, selectmode=SINGLE)

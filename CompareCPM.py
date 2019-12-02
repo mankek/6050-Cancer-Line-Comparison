@@ -158,10 +158,8 @@ class GeneCompare():
 
 class GeneReport():
     def __init__(self, compare_obj, selection, ccle):
-        if not isinstance(selection,pd.Index):
-            raise TypeError("selection must be of type pndas.Index")
         self.__compare_obj = compare_obj
-        self.__selection = selection.tolist()
+        self.__selection = list(selection)
         self.__tissue_type = ccle.tissue
         self.__geneList = ccle.geneList
         self.__ignored = []
