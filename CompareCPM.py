@@ -178,14 +178,14 @@ class GeneReport():
             self.__createWorkbook(file_dir)
             self.__popGeneSummary()
             self.__popCorrelationSheet()
-            self.writer.save()
+            self.__writer.save()
         except:
             error = True
         return error
 
     def __createWorkbook(self, file_dir):
         ts = strftime("%Y-%m-%d %H%M%S", localtime())
-        self.writer = pd.ExcelWriter(os.path.join(file_dir, self.__tissue_type+' Report '+ts+'.xlsx'), engine='xlsxwriter')
+        self.__writer = pd.ExcelWriter(os.path.join(file_dir, self.__tissue_type+' Report '+ts+'.xlsx'), engine='xlsxwriter')
 
     def __popGeneSummary(self):
         if len(self.__selection) > 2:
@@ -197,7 +197,7 @@ class GeneReport():
             summary_df['Selection Descriptive Statistics'] = select_df.describe().T
             summary_df['Exclusion Descriptive Statistics'] = ignore_df.describe().T
             summary_df = pd.concat(summary_df,axis=1)
-            summary_df.to_excel(self.writer, sheet_name='Gene Summary')
+            summary_df.to_excel(self.__writer, sheet_name='Gene Summary')
 
     def __calcGeneComp(self,select_df,ignore_df):
         testStats = []
@@ -225,12 +225,12 @@ class GeneReport():
     def __popSampleSummary(self,select_df,ignore_df): #Depreciated
         select_df = select_df.describe().T
         ignore_df = ignore_df.describe().T
-        select_df.to_excel(self.writer, sheet_name='Select Summary')
-        ignore_df.to_excel(self.writer, sheet_name='Exclude Summary')
+        select_df.to_excel(self.__writer, sheet_name='Select Summary')
+        ignore_df.to_excel(self.__writer, sheet_name='Exclude Summary')
         
     def __popCorrelationSheet(self):
         correlations_df = self.__compare_obj.correlation(self.__selection)
-        correlations_df.to_excel(self.writer, sheet_name='Correlational Data')
+        correlations_df.to_excel(self.__writer, sheet_name='Correlational Data')
 
     def __popSampleSheets(self): #depreciated
         """Writes spearman correlations for selected samples
@@ -241,5 +241,4 @@ class GeneReport():
                 cap = 30
             else:
                 cap = len(s)
-            correlations[s].to_excel(self.writer, sheet_name=s[:cap])
-
+            correlations[s].to_excel(self.__writer, sheet_name=s[:cap])
