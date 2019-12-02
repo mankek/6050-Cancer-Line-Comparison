@@ -270,7 +270,8 @@ class Analyze:
         self.chosen_comp_2 = StringVar(master)
         self.chosen_comp_2.set("2")
         self.compare_obj.calcPCA(self.num_components)
-        self.selected_points, self.selected_tissues = self.get_all_points(self.compare_obj.PCA["PC1"], self.compare_obj.PCA["PC2"], "PC1", "PC2")
+        self.selected_tissues = self.compare_obj.sampleKeys()
+        self.selected_points = (self.compare_obj.PCA["PC1"][self.selected_tissues], self.compare_obj.PCA["PC2"][self.selected_tissues])
         self.top_frame = Frame(master, bd=10)
         self.top_frame.pack()
         self.middle_frame = Frame(master, bd=10)
@@ -366,16 +367,15 @@ class Analyze:
         comp_2 = "PC" + str(comp_2)
         x_points = df_in[comp_1]
         y_points = df_in[comp_2]
-        all_points, all_tissues = self.get_all_points(x_points, y_points, comp_1, comp_2)
-        # print(all_tissues)
-        colors = self.get_colors(all_tissues)
         self.fig, self.ax = plt.subplots()
         self.fig.canvas.set_window_title('Principle Component Graph')
-        pts = self.ax.scatter(x_points, y_points, c=colors)
-        legend1 = self.ax.legend(*pts.legend_elements(), loc="upper right", title="Type")
-        legend1.get_texts()[0].set_text("CCLE")
-        legend1.get_texts()[1].set_text("GDC")
-        self.ax.add_artist(legend1)
+        selected_samples = self.compare_obj.sampleKeys()[self.is_selected(self.compare_obj.sampleKeys())]
+        selected_ccle = self.compare_obj.CCLEKeys()[self.is_selected(self.compare_obj.CCLEKeys())]
+        for keys,l in zip([self.compare_obj.sampleKeys(),self.compare_obj.CCLEKeys(),selected_samples,selected_ccle],
+            ["Sample","CCLE","Sel-Samp","Sel-CCLE"]):
+            pts = self.ax.scatter(x_points[keys], y_points[keys], label=l)
+        pts = self.ax.scatter(x_points, y_points, alpha=0, label=None)
+        self.ax.legend()
         self.selector = SelectFromCollection(self.ax, pts)
         self.fig.canvas.mpl_connect("key_press_event", self.accept)
         self.ax.set_title("Press enter to accept selected points")
@@ -383,17 +383,9 @@ class Analyze:
         plt.ylabel(comp_2)
         plt.show()
 
-    def get_all_points(self, x_points, y_points, comp_1, comp_2):
-        points = []
-        for x, y in zip(x_points, y_points):
-            point_pair = [x, y]
-            points.append(point_pair)
-        all_tissues = self.compare_obj.co_PCA(comp_1, comp_2, points)
-        return points, all_tissues
-
-    def get_colors(self, tissues_list):
-        colors = [0 if tissue in self.compare_obj.CCLEKeys() else 1 for tissue in tissues_list]
-        return colors
+    def is_selected(self, keys):
+        selected = pandas.Series(self.selected_tissues)
+        return [any(selected.isin([x])) for x in keys]
 
     def accept(self, event):
         comp_1 = "PC" + str(self.chosen_comp_1.get())
@@ -411,6 +403,7 @@ class Analyze:
             # self.selector.disconnect()
             # self.ax.set_title("")
             self.fig.canvas.draw()
+            plt.close()
 
 
 class GDCQuery:
