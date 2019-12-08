@@ -16,9 +16,9 @@ https://portals.broadinstitute.org/ccle/users/sign_in
 
 ## Built With
 
-* [Dropwizard](http://www.dropwizard.io/1.0.2/docs/) - The web framework used
-* [Maven](https://maven.apache.org/) - Dependency Management
-* [ROME](https://rometools.github.io/rome/) - Used to generate RSS Feeds
+* [python](https://www.python.org/) - programming language
+* [pandas](https://pandas.pydata.org/) - structuring data
+* [matplotlib](https://matplotlib.org/) - data visualizations
 
 ## Authors
 
